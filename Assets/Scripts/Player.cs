@@ -4,32 +4,91 @@ using UnityEngine;
 
 public class Player : MonoBehaviour
 {
-    public int speed = 4;
+    [Range(0, 150)] public int hp = 100;
+    [Range(1, 4)] public int walkSpeed = 3;
+    [Range(4, 6)] public int runSpeed = 5;
+    [Range(4, 6)] public float jumpSpeed = 4;
+    [Range(6, 10)] public float gravity = 8;
+
+    int currentSpeed;
+    Animator animator;
     CharacterController controller;
-    Vector3 targetDirection;
-    Quaternion targetRotation;
+    Vector3 inputsVector;
+    Vector3 moveDirection;
     
-    // Start is called before the first frame update
+    public bool IsAlive
+    {
+        get {return hp > 0;}
+    }
+
+    public bool IsWalking
+    {
+        get { return moveDirection.magnitude > 0 && currentSpeed == walkSpeed; }
+    }
+
+    public bool IsRunning
+    {
+        get { return moveDirection.magnitude > 0 && currentSpeed == runSpeed; }
+    }
+
+    public bool IsFalling
+    {
+        get {return !controller.isGrounded;}
+    }
+    
     void Start()
     {
+        animator = gameObject.GetComponent<Animator>();
         controller = gameObject.GetComponent<CharacterController>();
     }
 
-    // Update is called once per frame
     void Update()
     {
-        var horizontal = Input.GetAxis("Horizontal");
-        var vertical = Input.GetAxis("Vertical");
+        if (!IsAlive)
+            return;
 
-        targetDirection = new Vector3(horizontal, 0f, vertical);
-        targetRotation = Quaternion.LookRotation(targetDirection, Vector3.up);
-        targetDirection = Camera.main.transform.TransformDirection(targetDirection);
-        targetDirection.y = 0.0f;
-
-        if (targetDirection.magnitude > 0)
+        if (controller.isGrounded)
         {
-            controller.Move(targetDirection * Time.deltaTime * speed);
-            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(targetDirection), Time.deltaTime * speed);
+            inputsVector = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
+            moveDirection = Camera.main.transform.TransformDirection(inputsVector);
+
+            moveDirection.y = 0;
+
+            if (Input.GetButtonDown("Jump"))
+            {
+                moveDirection.y = jumpSpeed;
+                animator.SetTrigger("jump");
+            }
+                
+            // Horizontal Axis Moved or Vertical Axis Moved or 
+            if (Mathf.Abs(inputsVector.x) != 0 || Mathf.Abs(inputsVector.z) != 0)
+            {
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(new Vector3(moveDirection.x, 0, moveDirection.z)), Time.deltaTime * 10);
+
+                if (Input.GetKey(KeyCode.LeftShift))
+                {
+                    currentSpeed = runSpeed;
+                }
+                else
+                {
+                    currentSpeed = walkSpeed;
+                }
+            } else {
+                currentSpeed = 0;
+            }
+
+            moveDirection = new Vector3(moveDirection.x * currentSpeed, moveDirection.y, moveDirection.z * currentSpeed);
         }
+
+        moveDirection.y -= gravity * Time.deltaTime;
+        
+        controller.Move(moveDirection * Time.deltaTime);
+    }
+
+    void FixedUpdate()
+    {
+        animator.SetBool("isRunning", IsRunning);
+        animator.SetBool("isWalking", IsWalking);
+        animator.SetBool("isFalling", IsFalling);
     }
 }
